@@ -1,0 +1,110 @@
+execute:
+	from efforting.mvp4.text_nodes import text_node
+	from render_template import contextual_renderer
+	import template_types as T
+
+	#from efforting.mvp4.type_system import representation
+	#representation.adjust_field_stack_limit(10)
+
+
+
+tree processor: template_processor
+	mnemonic: for {expression...?}[:]
+		ast_stack = config.context.accessor.ast_stack
+		ast_sub_stack = list()
+		template_body_processor.process_tree(node.body, context=config.context.sub_context(ast_stack=ast_sub_stack))
+		ast_stack.append(T.for_loop(expression, T.template_sequence(ast_sub_stack)))
+
+	mnemonic: execute[:]
+		ast_stack = config.context.accessor.ast_stack
+		code = compile(node.body.text, '<template_execute_body>', 'exec')
+		ast_stack.append(T.execute(code))
+
+	mnemonic: if {expression...?}[:]
+		ast_stack = config.context.accessor.ast_stack
+		ast_sub_stack = list()
+		template_body_processor.process_tree(node.body, context=config.context.sub_context(ast_stack=ast_sub_stack))
+		ast_stack.append(T.conditional(expression, T.template_sequence(ast_sub_stack)))
+
+	mnemonic: elif {expression...?}[:]
+		ast_stack = config.context.accessor.ast_stack
+		ast_sub_stack = list()
+		previous = ast_stack[-1]
+
+		assert isinstance(previous, T.conditional)
+		template_body_processor.process_tree(node.body, context=config.context.sub_context(ast_stack=ast_sub_stack))
+		previous.append_chain(T.conditional(expression, T.template_sequence(ast_sub_stack)))
+
+	mnemonic: else[:]
+		ast_stack = config.context.accessor.ast_stack
+		ast_sub_stack = list()
+		previous = ast_stack[-1]
+
+		assert isinstance(previous, T.conditional)
+		template_body_processor.process_tree(node.body, context=config.context.sub_context(ast_stack=ast_sub_stack))
+		previous.append_chain(T.unconditional(T.template_sequence(ast_sub_stack)))
+
+
+
+
+tree processor: template_body_processor
+	mnemonic: § {pattern...}
+		ast_stack = config.context.accessor.ast_stack
+		template_processor.process_tree(text_node.from_title_and_body(pattern, node.body), context=config.context.sub_context(ast_stack=ast_stack))
+
+	default:
+		ast_stack = config.context.accessor.ast_stack
+		ast_sub_stack = list()
+		processor.process_tree(node.body, context=config.context.sub_context(ast_stack=ast_sub_stack), include_blanks=True)
+		body = T.template_sequence(ast_sub_stack)
+		if node.title is not None:
+			ast_stack.append(T.template_tree(T.template_tokenizer.process_text(node.title).tokens, body))
+		elif body:
+			ast_stack.append(T.template_tree(None, body))
+		else:
+			ast_stack.append(T.template_tree(None, None))
+
+
+
+text tree: test1
+	This is a test template
+	§ for word in word_list:
+		§ for char in word:
+			§ if char in 'oe':
+				§ execute
+					emit_line(f'Vowel is {char}')
+			§ elif char == 'l':
+				§ execute
+					emit_line(f'lLLllLLl!')
+			§ else:
+				§ execute
+					emit_line(f'Consonant is {char}')
+
+
+execute:
+	ast_stack = list()
+
+	template_body_processor.process_tree(test1, context=__context__.sub_context(ast_stack=ast_stack))
+	t = T.template_sequence(ast_stack)
+
+	__context__.set('word_list', ('hello', 'world'))
+	renderer = contextual_renderer(__context__)
+
+	print(renderer.render(t).text)
+
+text tree: example_output
+	This is a test template
+	Consonant is h
+	Vowel is e
+	lLLllLLl!
+	lLLllLLl!
+	Vowel is o
+
+	Consonant is w
+	Vowel is o
+	Consonant is r
+	lLLllLLl!
+	Consonant is d
+
+note:
+	I am not sure why there is a blank line between the words but currently this is not a big priority to solve.
