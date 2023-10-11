@@ -1,5 +1,5 @@
 from template_tokens import template_tokenizer
-from template_ast import switch, switch_branch, for_loop, execute, conditional, unconditional, indented, placeholder, sequence, template_tree
+from template_ast import switch, switch_branch, for_loop, execute, conditional, unconditional, indented, placeholder, sequence, template_tree, blank_line
 
 def template_sequence(seq):
 	if len(seq) == 0:

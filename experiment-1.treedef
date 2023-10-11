@@ -20,6 +20,11 @@ tree processor: template_processor
 		code = compile(node.body.text, '<template_execute_body>', 'exec')
 		ast_stack.append(T.execute(code))
 
+	mnemonic: blank[:]
+		assert not node.body.has_contents
+		ast_stack = config.context.accessor.ast_stack
+		ast_stack.append(T.blank_line)
+
 	mnemonic: if {expression...?}[:]
 		ast_stack = config.context.accessor.ast_stack
 		ast_sub_stack = list()
@@ -48,6 +53,14 @@ tree processor: template_processor
 
 
 tree processor: template_body_processor
+	mnemonic: \§{expression...?}
+		ast_stack = config.context.accessor.ast_stack
+		ast_sub_stack = list()
+		processor.process_tree(node.body, context=config.context.sub_context(ast_stack=ast_sub_stack), include_blanks=True)
+		body = T.template_sequence(ast_sub_stack)
+		ast_stack.append(T.template_tree(T.template_tokenizer.process_text(f'§{expression}').tokens, body))
+
+
 	mnemonic: § {pattern...}
 		ast_stack = config.context.accessor.ast_stack
 		template_processor.process_tree(text_node.from_title_and_body(pattern, node.body), context=config.context.sub_context(ast_stack=ast_stack))
@@ -66,19 +79,20 @@ tree processor: template_body_processor
 
 
 
-text tree: test1
+
+text tree with comments delimited by '←': test1
 	This is a test template
 	§ for word in word_list:
 		§ for char in word:
 			§ if char in 'oe':
-				§ execute
-					emit_line(f'Vowel is {char}')
+				§ execute								← Here we execute custom python code
+					emit_block(f'Vowel is {char}')
 			§ elif char == 'l':
-				§ execute
-					emit_line(f'lLLllLLl!')
+				\§ execute								← This is an escaped block, it will be treated as a regular part of the template
+					emit_block(f'lLLllLLl!')
 			§ else:
-				§ execute
-					emit_line(f'Consonant is {char}')
+				Consonant is «repr(char)»				← This part is just regular template except for the «placeholder» which is a valid python expression that evaluates to `str´
+		§ blank											← Leave a blank line between word blocks
 
 
 execute:
@@ -94,17 +108,18 @@ execute:
 
 text tree: example_output
 	This is a test template
-	Consonant is h
+	Consonant is 'h'
 	Vowel is e
-	lLLllLLl!
-	lLLllLLl!
+	§ execute
+	        emit_block(f'lLLllLLl!')
+	§ execute
+	        emit_block(f'lLLllLLl!')
 	Vowel is o
 
-	Consonant is w
+	Consonant is 'w'
 	Vowel is o
-	Consonant is r
-	lLLllLLl!
-	Consonant is d
+	Consonant is 'r'
+	§ execute
+	        emit_block(f'lLLllLLl!')
+	Consonant is 'd'
 
-note:
-	I am not sure why there is a blank line between the words but currently this is not a big priority to solve.

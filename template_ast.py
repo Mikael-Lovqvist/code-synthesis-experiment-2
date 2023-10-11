@@ -1,5 +1,10 @@
 from efforting.mvp4 import type_system as RTS
 from efforting.mvp4.type_system.bases import public_base
+from efforting.mvp4.symbols import create_symbol
+
+
+
+blank_line = create_symbol('template.blank_line')
 
 class switch(public_base):
 	expression = RTS.positional()

@@ -12,6 +12,8 @@ class contextual_renderer(public_base):
 		match piece:
 			case str():
 				return piece
+			case T.placeholder(expression):
+				return self.context.eval(expression)
 			case _:
 				raise TypeError(piece)
 
@@ -62,7 +64,11 @@ class contextual_renderer(public_base):
 					nonlocal result
 					result.write(f'{line}\n')
 
-				for_context = self.context.advanced_sub_context(dict(__action__=for_action, emit=emit, emit_line=emit_line), name='for_context')
+				def emit_block(block):
+					nonlocal result
+					result += text_node.from_text(block)
+
+				for_context = self.context.advanced_sub_context(dict(__action__=for_action, emit=emit, emit_line=emit_line, emit_block=emit_block), name='for_context')
 				sub_renderer = contextual_renderer(for_context)
 				for_context.exec(f'for {expression}:\n\t__action__()')
 
@@ -78,6 +84,9 @@ class contextual_renderer(public_base):
 					return text_node.from_branches(branches)
 				else:
 					return text_node()
+
+			case _ if item is T.blank_line:
+				return text_node.from_text('')
 
 			case _ if item is None:
 				return text_node()
